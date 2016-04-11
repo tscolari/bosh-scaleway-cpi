@@ -1,7 +1,9 @@
 package scaleway
 
 import (
-	"code.google.com/p/go-uuid/uuid"
+	"fmt"
+
+	"github.com/satori/go.uuid"
 	"github.com/scaleway/scaleway-cli/pkg/api"
 	"github.com/tscolari/bosh-c3pi/cloud"
 )
@@ -28,7 +30,7 @@ func (c *Client) CurrentVmID() string {
 }
 func (c *Client) CreateVm(agentID, stemcellID string, cloudProperties cloud.CloudProperties, networks cloud.Networks, diskLocality string, env cloud.Environment) (string, error) {
 	definition := api.ScalewayServerDefinition{
-		Name:           "bosh-" + uuid.New(),
+		Name:           fmt.Sprintf("bosh-%s", uuid.NewV4()),
 		CommercialType: cloudProperties["instance_type"],
 		Tags:           []string{"bosh"},
 	}
@@ -40,37 +42,80 @@ func (c *Client) DeleteVm(vmID string) error {
 	return c.api.DeleteServer(vmID)
 }
 func (c *Client) HasVm(vmID string) (bool, error) {
-	return true, nil
+	server, err := c.api.GetServer(vmID)
+	if err != nil {
+		return false, err
+	}
+
+	if server != nil {
+		return true, nil
+	}
+
+	return false, nil
 }
+
 func (c *Client) RebootVm(vmID string) error {
 	return c.api.PostServerAction(vmID, "reboot")
 }
+
 func (c *Client) SetVmMetadata(vm string, metadata cloud.Metadata) error {
 	return nil
 }
 
 func (c *Client) CreateDisk(size int, cloudProperties cloud.CloudProperties, vmLocality string) (string, error) {
-	return "", nil
+	volumeDefinition := api.ScalewayVolumeDefinition{
+		Name:         fmt.Sprintf("bosh-%s", uuid.NewV4()),
+		Size:         uint64(size),
+		Type:         "l_ssd",
+		Organization: c.api.Organization,
+	}
+
+	return c.api.PostVolume(volumeDefinition)
 }
+
 func (c *Client) GetDisks(vmID string) ([]string, error) {
-	return []string{}, nil
+	volumes, err := c.api.GetVolumes()
+	if err != nil {
+		return nil, err
+	}
+
+	volumeIDs := []string{}
+	for _, volume := range *volumes {
+		volumeIDs = append(volumeIDs, volume.Identifier)
+	}
+
+	return volumeIDs, nil
 }
+
 func (c *Client) HasDisk(diskID string) (bool, error) {
-	return true, nil
+	volume, err := c.api.GetVolume(diskID)
+	if err != nil {
+		return false, err
+	}
+
+	if volume != nil {
+		return true, nil
+	}
+
+	return false, nil
 }
+
 func (c *Client) DeleteDisk(diskID string) error {
-	return nil
+	return c.api.DeleteVolume(diskID)
 }
+
 func (c *Client) AttachDisk(vmID, diskID string) error {
 	return nil
 }
+
 func (c *Client) DetachDisk(vmID, diskID string) error {
 	return nil
 }
 
 func (c *Client) SnapshotDisk(diskID string, metadata cloud.Metadata) (string, error) {
-	return "", nil
+	return c.api.PostSnapshot(diskID, fmt.Sprintf("bosh-%s", uuid.NewV4()))
 }
+
 func (c *Client) DeleteSnapshot(snapshotID string) error {
-	return nil
+	return c.api.DeleteSnapshot(snapshotID)
 }
