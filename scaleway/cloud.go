@@ -29,9 +29,15 @@ func (c *Client) CurrentVmID() string {
 	return ""
 }
 func (c *Client) CreateVm(agentID, stemcellID string, cloudProperties cloud.CloudProperties, networks cloud.Networks, diskLocality string, env cloud.Environment) (string, error) {
+	var publicIP string
+	if network, ok := networks["public"]; ok {
+		publicIP = network.IP
+	}
+
 	definition := api.ScalewayServerDefinition{
 		Name:           fmt.Sprintf("bosh-%s", uuid.NewV4()),
 		CommercialType: cloudProperties["instance_type"],
+		PublicIP:       publicIP,
 		Tags:           []string{"bosh"},
 	}
 
